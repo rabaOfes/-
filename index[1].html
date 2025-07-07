@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>نظام مولدة الكهرباء</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  body {
+    font-family: 'Cairo', sans-serif;
+    direction: rtl;
+    margin: 0;
+    padding-bottom: 70px;
+    background: linear-gradient(to bottom, #e0f7fa, #ffffff);
+  }
+  section {
+    display: none;
+    max-width: 95%;
+    margin: 20px auto;
+    background: white;
+    padding: 15px;
+    border-radius: 10px;
+    box-shadow: 0 0 8px rgba(0, 0, 0, 0.1);
+  }
+  button {
+    background-color: #00bcd4;
+    color: white;
+    border: none;
+    padding: 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: bold;
+    margin: 5px;
+  }
+  form input, input {
+    margin-bottom: 12px;
+    padding: 12px;
+    font-size: 16px;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+    width: 100%;
+  }
+  nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 60px;
+    background: #222;
+    display: none;
+    justify-content: space-around;
+    align-items: center;
+    z-index: 999;
+  }
+  nav button {
+    background: none;
+    border: none;
+    color: #aaa;
+    font-size: 13px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  nav button.active {
+    color: #00bcd4;
+    font-weight: bold;
+  }
+  .login-container, .guide-container {
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    padding: 30px;
+    text-align: center;
+    max-width: 400px;
+    margin: 60px auto;
+  }
+  .guide-nav {
+    display: flex;
+    justify-content: space-between;
+  }
+</style>
+</head>
+<body>
+
+<!-- صفحات الإرشاد الثلاثة -->
+<section id="guide1" style="display:block;">
+  <div class="guide-container">
+    <h2>عن التطبيق</h2>
+    <p>تطبيق مخصص لإدارة مولدتك بسهولة، من خلال متابعة الزبائن والمدفوعات والإحصائيات.</p>
+    <div class="guide-nav">
+      <div></div>
+      <button onclick="goToGuide(2)">التالي ⬅️</button>
+    </div>
+  </div>
+</section>
+
+<section id="guide2">
+  <div class="guide-container">
+    <h2>كيفية الحصول على الرمز</h2>
+    <p>يمكنك الحصول على رمز الاشتراك من خلال التواصل مع الإدارة، أو عبر مسؤول المنظومة.</p>
+    <div class="guide-nav">
+      <button onclick="goToGuide(1)">⬅️ السابق</button>
+      <button onclick="goToGuide(3)">التالي ⬅️</button>
+    </div>
+  </div>
+</section>
+
+<section id="guide3">
+  <div class="guide-container">
+    <h2>إدارة المولدة</h2>
+    <p>يمكنك إضافة الزبائن، تتبع الدفع، عرض الإحصائيات، وإرسال الإشعارات.</p>
+    <div class="guide-nav" style="justify-content: center;">
+      <button onclick="goToGuide(2)">⬅️ السابق</button>
+    </div>
+    <button onclick="goToLogin()" style="margin-top:20px;">🚀 استخدام التطبيق</button>
+  </div>
+</section>
+
+<!-- صفحة تسجيل الدخول بالرمز -->
+<section id="codeLogin">
+  <div class="login-container">
+    <h1>👋 مرحبًا بك في نظام مولدة الكهرباء</h1>
+    <p>يرجى إدخال رمز الاشتراك</p>
+    <input id="codeInput" type="text" placeholder="🔐 أدخل الرمز" />
+    <button onclick="verifyCode()">متابعة</button>
+    <p id="codeError" style="color:red; display:none;">❌ الرمز غير صحيح</p>
+  </div>
+</section>
+
+<!-- إدخال اسم صاحب المولدة -->
+<section id="ownerLogin">
+  <div class="login-container">
+    <h1>👤 اسم صاحب المولدة</h1>
+    <input id="ownerNameInput" type="text" placeholder="ادخل الاسم" />
+    <button onclick="saveOwnerName()">دخول</button>
+  </div>
+</section>
+
+<!-- باقي الصفحات: لوحة التحكم، الإضافة، الإشعارات، الإحصائيات -->
+<section id="dashboard"><h2>📋 لوحة التحكم</h2><div id="customerList"></div></section>
+<section id="addCustomer"><h2>➕ إضافة زبون</h2><form id="addForm"><input type="text" placeholder="اسم الزبون" required><input type="text" placeholder="الهاتف" required><input type="number" placeholder="الأمبيرات" required><input type="number" placeholder="السعر" required><button type="submit">💾 حفظ</button></form></section>
+<section id="notifications"><h2>🔔 الإشعارات</h2><div id="notificationsContent"></div></section>
+<section id="stats"><h2>📊 الإحصائيات</h2><div style="max-width:300px;margin:auto;"><canvas id="pieChart"></canvas></div><p id="statsText" style="text-align:center;font-weight:bold;"></p></section>
+
+<nav>
+  <button class="active" data-target="dashboard">لوحة التحكم</button>
+  <button data-target="addCustomer">إضافة</button>
+  <button data-target="notifications">الإشعارات</button>
+  <button data-target="stats">الإحصائيات</button>
+</nav>
+
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyCa7-yWkUwcC108-VlizT6TDR5gKhEG1B0",
+  authDomain: "salm1995.firebaseapp.com",
+  databaseURL: "https://salm1995-default-rtdb.firebaseio.com",
+  projectId: "salm1995",
+  storageBucket: "salm1995.appspot.com",
+  messagingSenderId: "989814377294",
+  appId: "1:989814377294:web:2bd165641354e74b38ac1f"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+const allowedCodes = ["Salm11", "Power22", "GenX33", "Volt44", "Amper55", "Watts66", "Motor77", "Diesel88", "Fuel99", "Engine01", "MegaW02", "GenZ03", "Power04", "Smart05", "Volt06", "Grid07", "Turbo08", "Elec09", "Plant10", "Light20"];
+
+function goToGuide(n) {
+  document.querySelectorAll("section").forEach(s => s.style.display = "none");
+  document.getElementById("guide" + n).style.display = "block";
+}
+function goToLogin() {
+  document.querySelectorAll("section").forEach(s => s.style.display = "none");
+  document.getElementById("codeLogin").style.display = "block";
+}
+function verifyCode() {
+  const code = document.getElementById("codeInput").value.trim();
+  if (allowedCodes.includes(code)) {
+    localStorage.setItem("accountCode", code);
+    document.getElementById("codeLogin").style.display = "none";
+    document.getElementById("ownerLogin").style.display = "block";
+  } else {
+    document.getElementById("codeError").style.display = "block";
+  }
+}
+function saveOwnerName() {
+  const name = document.getElementById("ownerNameInput").value.trim();
+  if (name) {
+    localStorage.setItem("ownerName", name);
+    location.reload();
+  }
+}
+function showMainApp() {
+  document.querySelectorAll("section").forEach(s => s.style.display = "none");
+  document.querySelector("nav").style.display = "flex";
+  document.getElementById("dashboard").style.display = "block";
+  loadCustomers();
+  loadStats();
+  loadNotifications();
+}
+document.querySelectorAll("nav button").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll("nav button").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    document.querySelectorAll("section").forEach(s => s.style.display = "none");
+    document.getElementById(btn.dataset.target).style.display = "block";
+  });
+});
+document.getElementById("addForm").addEventListener("submit", e => {
+  e.preventDefault();
+  const inputs = e.target.querySelectorAll("input");
+  const customer = {
+    name: inputs[0].value,
+    phone: inputs[1].value,
+    amper: +inputs[2].value,
+    price: +inputs[3].value,
+    paid: false,
+    lastPaymentTime: Date.now()
+  };
+  const code = localStorage.getItem("accountCode");
+  db.ref("customers/" + code).push(customer).then(() => {
+    e.target.reset();
+    loadCustomers();
+    loadStats();
+    loadNotifications();
+  });
+});
+
+function loadCustomers() {
+  const code = localStorage.getItem("accountCode");
+  const container = document.getElementById("customerList");
+  db.ref("customers/" + code).once("value").then(snap => {
+    const data = snap.val() || {};
+    container.innerHTML = "";
+    if (Object.keys(data).length === 0) {
+      container.innerHTML = `
+        <p style="text-align:center; color:#777; margin-bottom: 10px;">لا يوجد زبائن حالياً.</p>
+        <div style="text-align:center;">
+          <button onclick="showAddCustomer()" style="background-color:#00bcd4; padding:10px 20px; border:none; border-radius:8px; color:#fff; font-weight:bold; cursor:pointer;">
+            ➕ إضافة زبون
+          </button>
+        </div>`;
+      return;
+    }
+    for (const key in data) {
+      const c = data[key];
+      const durationDays = Math.floor((Date.now() - c.lastPaymentTime) / (1000 * 60 * 60 * 24));
+      const card = document.createElement("div");
+      card.style = "border:1px solid #ccc; margin-bottom:12px; padding:10px; border-radius:8px; background:#fafafa; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;";
+      card.innerHTML = `
+        <div style="flex:2; min-width:150px;"><b>${c.name}</b><br><small>الهاتف: ${c.phone}</small></div>
+        <div style="flex:1; min-width:80px;">أمبير: ${c.amper}</div>
+        <div style="flex:1; min-width:80px;">السعر: ${c.price}</div>
+        <div style="flex:1; min-width:100px; color:${c.paid ? '#28a745' : '#dc3545'};">
+          ${c.paid ? 'تم الدفع' : `لم يدفع منذ ${durationDays} يوم`}
+        </div>
+        <div style="flex:1; min-width:80px; text-align:center;">
+          <button ${c.paid ? 'disabled' : ''} onclick="markPaid('${key}')">دفع</button>
+        </div>`;
+      container.appendChild(card);
+    }
+  });
+}
+
+function showAddCustomer() {
+  document.querySelectorAll("section").forEach(s => s.style.display = "none");
+  document.getElementById("addCustomer").style.display = "block";
+  document.querySelector("nav button").forEach(btn => btn.classList.remove("active"));
+  document.querySelector('nav button[data-target="addCustomer"]').classList.add("active");
+}
+
+function markPaid(key) {
+  db.ref("customers/" + localStorage.getItem("accountCode") + "/" + key)
+    .update({ paid: true, lastPaymentTime: Date.now() })
+    .then(() => {
+      loadCustomers();
+      loadStats();
+      loadNotifications();
+    });
+}
+
+function loadNotifications() {
+  const code = localStorage.getItem("accountCode");
+  const container = document.getElementById("notificationsContent");
+  container.innerHTML = "";
+  db.ref("customers/" + code).once("value").then(snap => {
+    const data = snap.val() || {};
+    const alerts = [];
+    for (const k in data) {
+      const c = data[k];
+      const daysSince = Math.floor((Date.now() - c.lastPaymentTime) / (1000 * 60 * 60 * 24));
+      if (!c.paid && daysSince > 29) {
+        alerts.push(`<div>⚠️ الزبون <b>${c.name}</b> لم يدفع منذ أكثر من 29 يومًا.</div>`);
+      }
+    }
+    container.innerHTML = alerts.length ? alerts.join("") : "لا توجد إشعارات حالياً.";
+  });
+}
+
+let pieChart;
+function loadStats() {
+  const code = localStorage.getItem("accountCode");
+  db.ref("customers/" + code).once("value").then(snap => {
+    const data = snap.val() || {};
+    let paidCount = 0, unpaidCount = 0;
+    for (const k in data) {
+      if (data[k].paid) paidCount++;
+      else unpaidCount++;
+    }
+    const total = paidCount + unpaidCount;
+    const paidPercent = total ? Math.round((paidCount / total) * 100) : 0;
+    const ctx = document.getElementById("pieChart").getContext("2d");
+    if (pieChart) pieChart.destroy();
+    pieChart = new Chart(ctx, {
+      type: "doughnut",
+      data: {
+        labels: ["تم الدفع", "لم يدفع"],
+        datasets: [{
+          data: [paidCount, unpaidCount],
+          backgroundColor: ["#28a745", "#dc3545"]
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { position: "bottom", labels: { font: { size: 14 } } }
+        }
+      }
+    });
+    document.getElementById("statsText").textContent = `مدفوع: ${paidCount} (${paidPercent}%) / غير مدفوع: ${unpaidCount} (${100 - paidPercent}%)`;
+  });
+}
+
+window.onload = () => {
+  const name = localStorage.getItem("ownerName");
+  const code = localStorage.getItem("accountCode");
+  if (allowedCodes.includes(code)) {
+    if (name && name.length > 1) {
+      showMainApp();
+    } else {
+      document.querySelectorAll("section").forEach(s => s.style.display = "none");
+      document.getElementById("ownerLogin").style.display = "block";
+    }
+  }
+};
+</script>
+
+</body>
+</html>
